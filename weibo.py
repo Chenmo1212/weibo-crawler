@@ -210,6 +210,18 @@ class Weibo(object):
         r = requests.get(url, params=params, headers=self.headers, verify=False)
         return r.json(), r.status_code
 
+    def get_weibo_json_from_mymblog(self, page):
+        # https://weibo.com/ajax/statuses/mymblog?uid=5819055591&page=1
+        params = {
+            "uid": str(self.user_config["user_id"]),
+            "page": page
+        }
+        """获取网页中json数据"""
+        url = "https://weibo.com/ajax/statuses/mymblog?"
+        r = requests.get(url, params=params, headers=self.headers, verify=False)
+        js, _ = r.json(), r.status_code
+        return js
+
     def get_weibo_json(self, page):
         """获取网页中微博json数据"""
         params = (
@@ -223,6 +235,17 @@ class Weibo(object):
         )
         params["page"] = page
         js, _ = self.get_json(params)
+
+        if js['data']['cards'][0]['card_type'] == 58:
+            logger.info("Warning: %s账号微博内容为空，正在试图从mymblog接口获取数据", self.user["screen_name"])
+            js = self.get_weibo_json_from_mymblog(page)
+            js['data']['cards'] = []
+
+            weibos_len = len(js['data']['list'])
+            if weibos_len:
+                logger.info("从mymblog接口获取到%d条数据", weibos_len)
+            for item in js['data']['list']:
+                js['data']['cards'].append({"mblog": item, "card_type": 9})
         return js
 
     def user_to_csv(self):
@@ -341,10 +364,10 @@ class Weibo(object):
         if self.long_sleep_count_before_each_user > 0:
             sleep_time = random.randint(30, 60)
             # 添加log，否则一般用户不知道以为程序卡了
-            logger.info(f"""短暂sleep {sleep_time}秒，避免被ban""")        
+            logger.info(f"""短暂sleep {sleep_time}秒，避免被ban""")
             sleep(sleep_time)
-            logger.info("sleep结束")  
-        self.long_sleep_count_before_each_user = self.long_sleep_count_before_each_user + 1      
+            logger.info("sleep结束")
+        self.long_sleep_count_before_each_user = self.long_sleep_count_before_each_user + 1
 
         js, status_code = self.get_json(params)
         if status_code != 200:
@@ -486,11 +509,11 @@ class Weibo(object):
             sqlite_exist = False
             if "sqlite" in self.write_mode:
                 sqlite_exist = self.sqlite_exist_file(file_path)
-                if not sqlite_exist: 
+                if not sqlite_exist:
                     need_download = True
 
             if not need_download:
-                return 
+                return
 
             s = requests.Session()
             s.mount(url, HTTPAdapter(max_retries=5))
@@ -512,7 +535,7 @@ class Weibo(object):
                     logger.debug("[DEBUG] success " + url + "  " + str(try_count))
                     break
 
-            if success: 
+            if success:
                 # 需要分别判断是否需要下载
                 if not file_exist:
                     with open(file_path, "wb") as f:
@@ -728,7 +751,7 @@ class Weibo(object):
                 and "int" not in str(type(v))
                 and "list" not in str(type(v))
                 and "long" not in str(type(v))
-            ):
+            ) and v:
                 weibo[k] = (
                     v.replace("\u200b", "")
                     .encode(sys.stdout.encoding, "ignore")
@@ -745,7 +768,7 @@ class Weibo(object):
             weibo["user_id"] = ""
             weibo["screen_name"] = ""
         weibo["id"] = int(weibo_info["id"])
-        weibo["bid"] = weibo_info["bid"]
+        weibo["bid"] = weibo_info.get("bid")
         text_body = weibo_info["text"]
         selector = etree.HTML(f"{text_body}<hr>" if text_body.isspace() else text_body)
         if self.remove_html_tag:
@@ -1086,7 +1109,7 @@ class Weibo(object):
             return True
         else:
             return False
-    
+
 
     def get_one_page(self, page):
         """获取一页的全部微博"""
@@ -1098,7 +1121,7 @@ class Weibo(object):
                 json.dump(js,f) #把列表numbers内容写入到"list.json"文件中
             if js["ok"]:
                 weibos = js["data"]["cards"]
-                
+
                 if self.query:
                     weibos = weibos[0]["card_group"]
                 # 如果需要检查cookie，在循环第一个人的时候，就要看看仅自己可见的信息有没有，要是没有直接报错
@@ -1209,7 +1232,7 @@ class Weibo(object):
                                 # self.print_weibo(wb)
                             else:
                                 logger.info("正在过滤转发微博")
-                    
+
                 if const.CHECK_COOKIE["CHECK"] and not const.CHECK_COOKIE["CHECKED"]:
                     logger.warning("经检查，cookie无效，系统退出")
                     if const.NOTIFY["NOTIFY"]:
@@ -1650,7 +1673,7 @@ class Weibo(object):
             sqlite_comment["text"] = re.sub('<[^<]+?>', '', comment["text"]).replace('\n', '').strip()
         else:
             sqlite_comment["text"] = comment["text"]
-        
+
         sqlite_comment["pic_url"] = ""
         if comment.get("pic"):
             sqlite_comment["pic_url"] = comment["pic"]["large"]["url"]
