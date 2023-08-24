@@ -238,7 +238,7 @@ class Weibo(object):
         js, _ = self.get_json(params)
 
         if js['data']['cards'][0]['card_type'] == 58:
-            logger.info("Warning: %s账号微博内容为空，正在试图从mymblog接口获取数据", self.user["screen_name"])
+            logger.warning("\n %s账号微博内容为空，正在试图从mymblog接口获取数据", self.user["screen_name"])
             js = self.get_weibo_json_from_mymblog(page)
             js['data']['cards'] = []
 
@@ -662,21 +662,9 @@ class Weibo(object):
         except Exception as e:
             logger.exception(e)
 
-    def get_location(self, selector):
-        """获取微博发布位置"""
-        location_icon = "timeline_card_small_location_default.png"
-        span_list = selector.xpath("//span")
-        location = ""
-        for i, span in enumerate(span_list):
-            if span.xpath("img/@src"):
-                if location_icon in span.xpath("img/@src")[0]:
-                    location = span_list[i + 1].xpath("string(.)")
-                    break
-        return location
-
     def get_article_url(self, info):
         """获取微博的原始url"""
-        return self.article_detail_base_url + info['idstr']
+        return self.article_detail_base_url + str(info['id'])
 
     def get_topics(self, selector):
         """获取参与的微博话题"""
@@ -763,7 +751,7 @@ class Weibo(object):
             weibo["user_id"] = ""
             weibo["screen_name"] = ""
         weibo["id"] = int(weibo_info["id"])
-        weibo["bid"] = weibo_info.get("bid")
+        weibo["bid"] = weibo_info.get("bid") or weibo_info.get("mblogid")
         text_body = weibo_info["text"]
         selector = etree.HTML(f"{text_body}<hr>" if text_body.isspace() else text_body)
         if self.remove_html_tag:
@@ -781,7 +769,7 @@ class Weibo(object):
         weibo["article_url"] = self.get_article_url(weibo_info)
         weibo["pics"] = self.get_pics(weibo_info)
         weibo["video_url"] = self.get_video_url(weibo_info)
-        weibo["location"] = self.get_location(selector)
+        weibo["location"] = weibo_info.get('region_name')
         weibo["created_at"] = weibo_info["created_at"]
         weibo["source"] = weibo_info["source"]
         weibo["attitudes_count"] = self.string_to_int(
@@ -1200,32 +1188,33 @@ class Weibo(object):
                                 ):
                                     continue
                                 else:
-                                    logger.info(
-                                        "{}已获取{}({})的第{}页{}微博{}".format(
-                                            "-" * 30,
-                                            self.user["screen_name"],
-                                            self.user["id"],
-                                            page,
-                                            '包含"' + self.query + '"的'
-                                            if self.query
-                                            else "",
-                                            "-" * 30,
-                                        )
-                                    )
+                                    # logger.info(
+                                    #     "{}已获取{}({})的第{}页{}微博{}".format(
+                                    #         "-" * 30,
+                                    #         self.user["screen_name"],
+                                    #         self.user["id"],
+                                    #         page,
+                                    #         '包含"' + self.query + '"的'
+                                    #         if self.query
+                                    #         else "",
+                                    #         "-" * 30,
+                                    #     )
+                                    # )
                                     return True
                             if (not self.only_crawl_original) or ("retweet" not in wb.keys()):
                                 self.weibo.append(wb)
                                 self.weibo_id_list.append(wb["id"])
                                 self.got_count += 1
                                 # 这里是系统日志输出，尽量别太杂
-                                logger.info(
-                                    "已获取用户 {} 的微博，内容为 {}".format(
-                                        self.user["screen_name"], wb["text"]
-                                    )
-                                )
+                                # logger.info(
+                                #     "已获取用户 {} 的微博，内容为 {}".format(
+                                #         self.user["screen_name"], wb["text"]
+                                #     )
+                                # )
                                 # self.print_weibo(wb)
                             else:
-                                logger.info("正在过滤转发微博")
+                                # logger.info("正在过滤转发微博")
+                                pass
 
                 if const.CHECK_COOKIE["CHECK"] and not const.CHECK_COOKIE["CHECKED"]:
                     logger.warning("经检查，cookie无效，系统退出")
@@ -1427,10 +1416,10 @@ class Weibo(object):
             else:
                 new_info_list = info_list
             for info in new_info_list:
-                if not collection.find_one({"id": info["id"]}):
+                if not collection.find_one({"id": int(info["id"])}):
                     collection.insert_one(info)
                 else:
-                    collection.update_one({"id": info["id"]}, {"$set": info})
+                    collection.update_one({"id": int(info["id"])}, {"$set": info})
         except pymongo.errors.ServerSelectionTimeoutError:
             logger.warning("系统中可能没有安装或启动MongoDB数据库，请先根据系统环境安装或启动MongoDB，再运行程序")
             sys.exit()
@@ -1439,6 +1428,17 @@ class Weibo(object):
         """将爬取的微博信息写入MongoDB数据库"""
         self.info_to_mongodb("weibo", self.weibo[wrote_count:])
         logger.info("%d条微博写入MongoDB数据库完毕", self.got_count)
+
+    def mongodb_insert_comments(self, weibo, comments):
+        if not comments or len(comments) == 0:
+            return
+
+        db_data = []
+        for comment in comments:
+            data = self.parse_db_comment(comment, weibo)
+            db_data.append(data)
+        self.info_to_mongodb("comments", db_data)
+        logger.info("%d条评论写入MongoDB数据库完毕", len(comments))
 
     def mysql_create(self, connection, sql):
         """创建MySQL数据库或表"""
@@ -1607,7 +1607,7 @@ class Weibo(object):
             self.sqlite_insert_weibo(con, weibo)
             if (download_comment) and (weibo["comments_count"] > 0):
                 self.get_weibo_comments(
-                    weibo, comment_max_count, self.sqlite_insert_comments
+                    weibo, comment_max_count, self.mongodb_insert_comments
                 )
                 count += 1
                 # 为防止被ban抓取一定数量的评论后随机睡3到6秒
@@ -1632,7 +1632,7 @@ class Weibo(object):
             return
         con = self.get_sqlite_connection()
         for comment in comments:
-            data = self.parse_sqlite_comment(comment, weibo)
+            data = self.parse_db_comment(comment, weibo)
             self.sqlite_insert(con, data, "comments")
 
         con.close()
@@ -1647,32 +1647,34 @@ class Weibo(object):
 
         con.close()
 
-    def parse_sqlite_comment(self, comment, weibo):
+    def parse_db_comment(self, comment, weibo):
         if not comment:
             return
-        sqlite_comment = OrderedDict()
-        sqlite_comment["id"] = comment["id"]
+        db_comment = OrderedDict()
+        db_comment["id"] = comment["id"]
 
-        self._try_get_value("bid", "bid", sqlite_comment, comment)
-        self._try_get_value("root_id", "rootid", sqlite_comment, comment)
-        self._try_get_value("created_at", "created_at", sqlite_comment, comment)
-        sqlite_comment["weibo_id"] = weibo["id"]
+        self._try_get_value("bid", "bid", db_comment, comment)
+        self._try_get_value("root_id", "rootid", db_comment, comment)
+        self._try_get_value("created_at", "created_at", db_comment, comment)
+        db_comment["weibo_id"] = weibo["id"]
 
-        sqlite_comment["user_id"] = comment["user"]["id"]
-        sqlite_comment["user_screen_name"] = comment["user"]["screen_name"]
+        db_comment["floor_number"] = comment["floor_number"]
+        db_comment["source"] = comment["source"]
+        db_comment["user_id"] = comment["user"]["id"]
+        db_comment["user_screen_name"] = comment["user"]["screen_name"]
         self._try_get_value(
-            "user_avatar_url", "avatar_hd", sqlite_comment, comment["user"]
+            "user_avatar_url", "avatar_hd", db_comment, comment["user"]
         )
         if self.remove_html_tag:
-            sqlite_comment["text"] = re.sub('<[^<]+?>', '', comment["text"]).replace('\n', '').strip()
+            db_comment["text"] = re.sub('<[^<]+?>', '', comment["text"]).replace('\n', '').strip()
         else:
-            sqlite_comment["text"] = comment["text"]
+            db_comment["text"] = comment["text"]
 
-        sqlite_comment["pic_url"] = ""
+        db_comment["pic_url"] = ""
         if comment.get("pic"):
-            sqlite_comment["pic_url"] = comment["pic"]["large"]["url"]
-        self._try_get_value("like_count", "like_count", sqlite_comment, comment)
-        return sqlite_comment
+            db_comment["pic_url"] = comment["pic"]["large"]["url"]
+        self._try_get_value("like_count", "like_count", db_comment, comment)
+        return db_comment
 
     def parse_sqlite_repost(self, repost, weibo):
         if not repost:
@@ -1701,7 +1703,7 @@ class Weibo(object):
     def _try_get_value(self, source_name, target_name, dict, json):
         dict[source_name] = ""
         value = json.get(target_name)
-        if value:
+        if value != None or value != '':
             dict[source_name] = value
 
     def sqlite_insert_weibo(self, con: sqlite3.Connection, weibo: dict):
