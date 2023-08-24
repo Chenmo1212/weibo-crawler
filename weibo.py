@@ -96,7 +96,7 @@ class Weibo(object):
         if not isinstance(user_id_list, list):
             if not os.path.isabs(user_id_list):
                 user_id_list = (
-                    os.path.split(os.path.realpath(__file__))[0] + os.sep + user_id_list
+                        os.path.split(os.path.realpath(__file__))[0] + os.sep + user_id_list
                 )
             self.user_config_file_path = user_id_list  # 用户配置文件路径
             user_config_list = self.get_user_config_list(user_id_list)
@@ -119,7 +119,8 @@ class Weibo(object):
         self.got_count = 0  # 存储爬取到的微博数
         self.weibo = []  # 存储爬取到的所有微博信息
         self.weibo_id_list = []  # 存储爬取到的所有微博id
-        self.long_sleep_count_before_each_user = 0 #每个用户前的长时间sleep避免被ban
+        self.article_detail_base_url = "https://weibo.com/detail/"
+        self.long_sleep_count_before_each_user = 0  # 每个用户前的长时间sleep避免被ban
 
     def validate_config(self, config):
         """验证配置是否正确"""
@@ -174,7 +175,7 @@ class Weibo(object):
         if not isinstance(user_id_list, list):
             if not os.path.isabs(user_id_list):
                 user_id_list = (
-                    os.path.split(os.path.realpath(__file__))[0] + os.sep + user_id_list
+                        os.path.split(os.path.realpath(__file__))[0] + os.sep + user_id_list
                 )
             if not os.path.isfile(user_id_list):
                 logger.warning("不存在%s文件", user_id_list)
@@ -435,7 +436,7 @@ class Weibo(object):
         for i in range(5):
             url = "https://m.weibo.cn/detail/%s" % id
             html = requests.get(url, headers=self.headers, verify=False).text
-            html = html[html.find('"status":') :]
+            html = html[html.find('"status":'):]
             html = html[: html.rfind('"call"')]
             html = html[: html.rfind(",")]
             html = "{" + html + "}"
@@ -474,8 +475,8 @@ class Weibo(object):
         video_url_list = []
         if weibo_info.get("page_info"):
             if (
-                weibo_info["page_info"].get("urls")
-                or weibo_info["page_info"].get("media_info")
+                    weibo_info["page_info"].get("urls")
+                    or weibo_info["page_info"].get("media_info")
             ) and weibo_info["page_info"].get("type") == "video":
                 media_info = weibo_info["page_info"]["urls"]
                 if not media_info:
@@ -528,7 +529,7 @@ class Weibo(object):
                 fail_flg_1 = url.endswith(("jpg", "jpeg")) and not downloaded.content.endswith(b"\xff\xd9")
                 fail_flg_2 = url.endswith("png") and not downloaded.content.endswith(b"\xaeB`\x82")
 
-                if ( fail_flg_1  or fail_flg_2):
+                if (fail_flg_1 or fail_flg_2):
                     logger.debug("[DEBUG] failed " + url + "  " + str(try_count))
                 else:
                     success = True
@@ -540,7 +541,7 @@ class Weibo(object):
                 if not file_exist:
                     with open(file_path, "wb") as f:
                         f.write(downloaded.content)
-                        logger.debug("[DEBUG] save " + file_path )
+                        logger.debug("[DEBUG] save " + file_path)
                 if (not sqlite_exist) and ("sqlite" in self.write_mode):
                     self.insert_file_sqlite(
                         file_path, weibo_id, url, downloaded.content
@@ -673,15 +674,9 @@ class Weibo(object):
                     break
         return location
 
-    def get_article_url(self, selector):
-        """获取微博中头条文章的url"""
-        article_url = ""
-        text = selector.xpath("string(.)")
-        if text.startswith("发布了头条文章"):
-            url = selector.xpath("//a/@data-url")
-            if url and url[0].startswith("http://t.cn"):
-                article_url = url[0]
-        return article_url
+    def get_article_url(self, info):
+        """获取微博的原始url"""
+        return self.article_detail_base_url + info['idstr']
 
     def get_topics(self, selector):
         """获取参与的微博话题"""
@@ -747,15 +742,15 @@ class Weibo(object):
         """标准化信息，去除乱码"""
         for k, v in weibo.items():
             if (
-                "bool" not in str(type(v))
-                and "int" not in str(type(v))
-                and "list" not in str(type(v))
-                and "long" not in str(type(v))
+                    "bool" not in str(type(v))
+                    and "int" not in str(type(v))
+                    and "list" not in str(type(v))
+                    and "long" not in str(type(v))
             ) and v:
                 weibo[k] = (
                     v.replace("\u200b", "")
-                    .encode(sys.stdout.encoding, "ignore")
-                    .decode(sys.stdout.encoding)
+                        .encode(sys.stdout.encoding, "ignore")
+                        .decode(sys.stdout.encoding)
                 )
         return weibo
 
@@ -776,14 +771,14 @@ class Weibo(object):
             # 若text_list中的某个字符串元素以 @ 或 # 开始，则将该元素与前后元素合并为新元素，否则会带来没有必要的换行
             text_list_modified = []
             for ele in range(len(text_list)):
-                if ele > 0 and (text_list[ele-1].startswith(('@','#')) or text_list[ele].startswith(('@','#'))):
+                if ele > 0 and (text_list[ele - 1].startswith(('@', '#')) or text_list[ele].startswith(('@', '#'))):
                     text_list_modified[-1] += text_list[ele]
                 else:
                     text_list_modified.append(text_list[ele])
             weibo["text"] = "\n".join(text_list_modified)
         else:
             weibo["text"] = text_body
-        weibo["article_url"] = self.get_article_url(selector)
+        weibo["article_url"] = self.get_article_url(weibo_info)
         weibo["pics"] = self.get_pics(weibo_info)
         weibo["video_url"] = self.get_video_url(weibo_info)
         weibo["location"] = self.get_location(selector)
@@ -924,7 +919,7 @@ class Weibo(object):
         self._get_weibo_reposts_cookie(weibo, 0, max_count, 1, on_downloaded)
 
     def _get_weibo_comments_cookie(
-        self, weibo, cur_count, max_count, max_id, on_downloaded
+            self, weibo, cur_count, max_count, max_id, on_downloaded
     ):
         """
         :weibo standardlized weibo
@@ -990,7 +985,7 @@ class Weibo(object):
         )
 
     def _get_weibo_comments_nocookie(
-        self, weibo, cur_count, max_count, page, on_downloaded
+            self, weibo, cur_count, max_count, page, on_downloaded
     ):
         """
         :weibo standardlized weibo
@@ -1044,7 +1039,7 @@ class Weibo(object):
         )
 
     def _get_weibo_reposts_cookie(
-        self, weibo, cur_count, max_count, page, on_downloaded
+            self, weibo, cur_count, max_count, page, on_downloaded
     ):
         """
         :weibo standardlized weibo
@@ -1110,15 +1105,14 @@ class Weibo(object):
         else:
             return False
 
-
     def get_one_page(self, page):
         """获取一页的全部微博"""
         try:
             js = self.get_weibo_json(page)
             import json
-            with open('js.json','w') as f:
-                #写入方式1，等价于下面这行
-                json.dump(js,f) #把列表numbers内容写入到"list.json"文件中
+            with open('js.json', 'w') as f:
+                # 写入方式1，等价于下面这行
+                json.dump(js, f)  # 把列表numbers内容写入到"list.json"文件中
             if js["ok"]:
                 weibos = js["data"]["cards"]
 
@@ -1127,7 +1121,7 @@ class Weibo(object):
                 # 如果需要检查cookie，在循环第一个人的时候，就要看看仅自己可见的信息有没有，要是没有直接报错
                 for w in weibos:
                     if w["card_type"] == 11:
-                        temp = w.get("card_group",[0])
+                        temp = w.get("card_group", [0])
                         if len(temp) >= 1:
                             w = temp[0] or w
                         else:
@@ -1136,11 +1130,11 @@ class Weibo(object):
                         wb = self.get_one_weibo(w)
                         if wb:
                             if (
-                                const.CHECK_COOKIE["CHECK"]
-                                and (not const.CHECK_COOKIE["CHECKED"])
-                                and wb["text"].startswith(
-                                    const.CHECK_COOKIE["HIDDEN_WEIBO"]
-                                )
+                                    const.CHECK_COOKIE["CHECK"]
+                                    and (not const.CHECK_COOKIE["CHECKED"])
+                                    and wb["text"].startswith(
+                                const.CHECK_COOKIE["HIDDEN_WEIBO"]
+                            )
                             ):
                                 const.CHECK_COOKIE["CHECKED"] = True
                                 logger.info("cookie检查通过")
@@ -1173,7 +1167,7 @@ class Weibo(object):
                                     self.first_crawler = False
                                 if str(wb["id"]) == self.last_weibo_id:
                                     if const.CHECK_COOKIE["CHECK"] and (
-                                        not const.CHECK_COOKIE["CHECKED"]
+                                            not const.CHECK_COOKIE["CHECKED"]
                                     ):
                                         # 已经爬取过最新的了，只是没检查到cookie，一旦检查通过，直接放行
                                         const.CHECK_COOKIE["EXIT_AFTER_CHECK"] = True
@@ -1202,7 +1196,7 @@ class Weibo(object):
                                     continue
                                 # 如果要检查还没有检查cookie，不能直接跳出
                                 elif const.CHECK_COOKIE["CHECK"] and (
-                                    not const.CHECK_COOKIE["CHECKED"]
+                                        not const.CHECK_COOKIE["CHECKED"]
                                 ):
                                     continue
                                 else:
@@ -1301,11 +1295,11 @@ class Weibo(object):
             if self.user_id_as_folder_name:
                 dir_name = self.user_config["user_id"]
             file_dir = (
-                os.path.split(os.path.realpath(__file__))[0]
-                + os.sep
-                + "weibo"
-                + os.sep
-                + dir_name
+                    os.path.split(os.path.realpath(__file__))[0]
+                    + os.sep
+                    + "weibo"
+                    + os.sep
+                    + dir_name
             )
             if type == "img" or type == "video":
                 file_dir = file_dir + os.sep + type
@@ -1936,7 +1930,7 @@ class Weibo(object):
                 return
             logger.info("准备搜集 {} 的微博".format(self.user["screen_name"]))
             if const.MODE == "append" and (
-                "first_crawler" not in self.__dict__ or self.first_crawler is False
+                    "first_crawler" not in self.__dict__ or self.first_crawler is False
             ):
                 # 本次运行的某用户首次抓取，用于标记最新的微博id
                 self.first_crawler = True
@@ -2035,6 +2029,7 @@ def handle_config_renaming(config, oldName, newName):
     if oldName in config and newName not in config:
         config[newName] = config[oldName]
         del config[oldName]
+
 
 def get_config():
     """获取config.json文件信息"""
