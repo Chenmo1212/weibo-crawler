@@ -611,15 +611,15 @@ class Weibo(object):
         try:
             describe = ""
             if file_type == "img":
-                describe = "图片"
+                describe = "imgs"
                 key = "pics"
             else:
-                describe = "视频"
+                describe = "videos"
                 key = "video_url"
             if weibo_type == "original":
-                describe = "原创微博" + describe
+                describe = "Original_weibo_" + describe
             else:
-                describe = "转发微博" + describe
+                describe = "Repost_weibo_" + describe
             logger.info("即将进行%s下载", describe)
             file_dir = self.get_filepath(file_type)
             file_dir = file_dir + os.sep + describe
