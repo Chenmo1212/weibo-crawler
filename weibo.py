@@ -1658,7 +1658,7 @@ class Weibo(object):
         self._try_get_value("created_at", "created_at", db_comment, comment)
         db_comment["weibo_id"] = weibo["id"]
 
-        db_comment["floor_number"] = comment["floor_number"]
+        db_comment["floor_number"] = comment.get("floor_number")
         db_comment["source"] = comment["source"]
         db_comment["user_id"] = comment["user"]["id"]
         db_comment["user_screen_name"] = comment["user"]["screen_name"]

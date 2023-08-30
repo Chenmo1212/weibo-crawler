@@ -1,10 +1,12 @@
 {
     "user_id_list": "user_id_list.txt",
-    "only_crawl_original": 0,
-    "since_date": 1,
+    "only_crawl_original": 1,
+    "since_date": "2018-01-01",
     "start_page": 1,
     "write_mode": [
-        "csv"
+        "json",
+        "sqlite",
+        "mongo"
     ],
     "original_pic_download": 1,
     "retweet_pic_download": 0,
@@ -14,9 +16,9 @@
     "comment_max_download_count": 100,
     "download_repost": 1,
     "repost_max_download_count": 100,
-    "user_id_as_folder_name": 0,
-    "remove_html_tag": 1,
-    "cookie": "your cookie",
+    "user_id_as_folder_name": 1,
+    "remove_html_tag": 0,
+    "cookie": "SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9WFpyxecAM86bSkyJr.nc49n5NHD95Qf1h24eh-fSK.pWs4DqcjQi--ciKLWi-88i--fiKnci-8hi--fiKy2iKnpi--Xi-iWiKyheKzE1Btt; _T_WM=272cc8495836ac22044afa0ed6e8917b; SCF=Aqf4TQ8tjlbRIBVYDF4cuYaU85eT_tmI5MHEBOFjbo2J9iUDRC-Pr9rz1NjS_8Wl3TeRpDNJ3iOT_f2seLpJFiA.; SUB=_2A25J4UukDeRhGeNG6lsR9SvJwj2IHXVrKlXsrDV6PUJbktANLXX6kW1NS2zmBBrYeHmRPd84Kch-HU1aRcyIuLwX; SSOLoginState=1692744692; XSRF-TOKEN=57c884; WEIBOCN_FROM=1110003030; MLOGIN=1; mweibo_short_token=83ed36d9fa; M_WEIBOCN_PARAMS=luicode%3D10000011%26lfid%3D102803%26uicode%3D20000174",
     "mysql_config": {
         "host": "localhost",
         "port": 3306,
@@ -24,5 +26,5 @@
         "password": "123456",
         "charset": "utf8mb4"
     },
-    "mongodb_URI": "mongodb://[username:password@]host[:port][/[defaultauthdb][?options]]"
+    "mongodb_URI": "mongodb://chenmo:nrahbsqt321321.@localhost:27017/weibo"
 }
